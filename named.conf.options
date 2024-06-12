@@ -9,7 +9,7 @@ options {
         8.8.8.8;
         8.8.4.4;
     };
-
+    querylog yes;
     dnssec-validation no;
 
     auth-nxdomain no;    # conform to RFC1035
