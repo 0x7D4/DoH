@@ -8,6 +8,6 @@ with open('ranked_domains.json') as f:
 # Loop through each entry in the list
 for website in websites:
     domain = website['domain']
-    command = f'curl --doh-insecure --doh-url https://localhost/dns-query https://www.{domain} -v'
+    command = f'curl --doh-insecure --doh-url https://10.0.2.15/dns-query https://www.{domain} -v'
     print(f'Running command: {command}')
     subprocess.run(command, shell=True)
