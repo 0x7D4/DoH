@@ -42,12 +42,11 @@ def extract_flow_bytes_and_time(packets, stream_index):
             print(f"packet_count: {packet_count}, stream_index length: {len(stream_index)}")
             flow_key = (src_ip, src_port, dst_ip, dst_port, stream_index[packet_count])
             flow_key_ba = (dst_ip, dst_port, src_ip, src_port, stream_index[packet_count])
-            
 
             # Extract packet length
             packet_length = len(packet)
 
-            server_ip = ['10.0.2.15']
+            server_ip = ['10.0.2.9']
 
             # Code to get the received flow bytes
             if src_ip in server_ip:
@@ -121,6 +120,7 @@ def extract_flow_bytes_and_time(packets, stream_index):
             
     return reverse_flow_tracker, packet_length_sent, packet_length_received, flow_start_time_of_sent, flow_end_time_of_sent, flow_start_time_of_received, flow_end_time_of_received, flow_bytes_sent, flow_bytes_received, time_stamp_sent_packet, time_stamp_received_packet, packet_tracker
 
+
 # Calculate flow bytes sent and received
 def calculate_flow_byte(flow_bytes_received, flow_bytes_sent, reverse_flow_tracker):
     flow_received = []
@@ -135,6 +135,22 @@ def calculate_flow_byte(flow_bytes_received, flow_bytes_sent, reverse_flow_track
 def calculate_flow_rate(reverse_flow_tracker, flow_bytes_received, flow_bytes_sent, flow_start_time_of_received, flow_end_time_of_received, flow_start_time_of_sent, flow_end_time_of_sent):
     flow_rate_received = []
     flow_rate_sent = {}
+    flow_durations = {}
+
+    # Calculating flow rate sent
+    for flow_key, bytes_sent in flow_bytes_sent.items():
+        start_time = flow_start_time_of_sent[flow_key]
+        end_time = flow_end_time_of_sent[flow_key]
+
+        #print(f'flow key: {flow_key} , bytes sent: {bytes_sent}')  
+
+        # Calculate time period in seconds
+        time_period = end_time - start_time
+        #print(f'flow key: {flow_key} , time period of sent: {time_period}')
+
+        # Calculate rate of flow bytes sent in bytes per second
+        rate = bytes_sent / time_period if time_period > 0 else 0
+        flow_rate_sent[flow_key] = round(rate, 6)   
 
     # Calculating flow rate received
     for i in range(len(flow_bytes_sent.keys())):
@@ -152,24 +168,18 @@ def calculate_flow_rate(reverse_flow_tracker, flow_bytes_received, flow_bytes_se
         else:
             # Flow rate received not available
             flow_rate_received.append(0)
-
-
-    # Calculating flow rate sent
-    for flow_key, bytes_sent in flow_bytes_sent.items():
-        start_time = flow_start_time_of_sent[flow_key]
-        end_time = flow_end_time_of_sent[flow_key]
-
-        #print(f'flow key: {flow_key} , bytes sent: {bytes_sent}')  
-
-        # Calculate time period in seconds
-        time_period = end_time - start_time
-        #print(f'flow key: {flow_key} , time period of sent: {time_period}')
-
-        # Calculate rate of flow bytes sent in bytes per second
-        rate = bytes_sent / time_period if time_period > 0 else 0
-        flow_rate_sent[flow_key] = round(rate, 6)   
-
-    return flow_rate_received, flow_rate_sent
+    
+    for i, key in enumerate(flow_start_time_of_sent.keys()):
+        start_time = flow_start_time_of_sent[key]
+        end_time = flow_end_time_of_sent[key]
+        duration = end_time - start_time
+        if isinstance(duration, timedelta):
+            flow_durations[i] = duration.total_seconds()
+        else:
+            # If duration is not a timedelta, convert it to seconds another way
+            flow_durations[i] = float(duration)
+    
+    return flow_rate_received, flow_rate_sent, flow_durations
 
 # Calculate mean Packet length for each flow
 def calculate_mean_packet_length(reverse_flow_tracker, packet_length_sent, packet_length_received):
@@ -430,6 +440,7 @@ def calculate_mode_packet_time(reverse_flow_tracker, time_stamp_sent_packet, tim
 def calculate_variance_packet_time(reverse_flow_tracker, time_stamp_sent_packet, time_stamp_received_packet, packet_tracker):
     variance_times = {}
     variance_seconds = {}
+    
     sent_keys = list(time_stamp_sent_packet.keys())
 
     for q in range(len(time_stamp_sent_packet.keys())):
@@ -575,7 +586,7 @@ def read_pcapng(file_path):
 
 if __name__ == "__main__":
     # Replace 'your_file.pcapng' with the path to your pcapng file
-    pcapng_file_path = 'DoH.pcapng'
+    pcapng_file_path = 'malicious2.pcapng'
     packets = read_pcapng(pcapng_file_path)
 
     # Create an empty dataframe
@@ -596,6 +607,8 @@ if __name__ == "__main__":
     #print(flow_sent)
     #print(flow_received)
 
+    
+
     # Feature 1 : Store flow bytes sent in a dataframe
     feature_df['flow_bytes_sent'] = flow_sent.values()
     
@@ -603,8 +616,10 @@ if __name__ == "__main__":
     feature_df['flow_bytes_recv'] = flow_received
     
     # Calculate rate of flow bytes sent
-    flow_rate_received, flow_rate_sent = calculate_flow_rate(reverse_flow_tracker, flow_bytes_received, flow_bytes_sent, flow_start_time_of_received, flow_end_time_of_received, flow_start_time_of_sent, flow_end_time_of_sent)
-
+    flow_rate_received, flow_rate_sent, flow_durations = calculate_flow_rate(reverse_flow_tracker, flow_bytes_received, flow_bytes_sent, flow_start_time_of_received, flow_end_time_of_received, flow_start_time_of_sent, flow_end_time_of_sent)
+    print("flow_rate_sent:", flow_rate_sent)
+    feature_df['flow_duration'] = pd.Series(flow_durations)
+    
     # Feature 3 : Rate of flow bytes sent
     feature_df['rt_flow_byte_st'] = flow_rate_sent.values()
 
@@ -707,7 +722,7 @@ if __name__ == "__main__":
     feature_df['skew_mod_pkt_tm'] = skew_mode_times.values()
     
     #feature_df['class'] = [1 for ]
-    feature_df.to_csv('amplification_sample.csv')
+    feature_df.to_csv('maldata.csv')
 
 
 
